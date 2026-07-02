@@ -68,6 +68,21 @@ if ($navUserId > 0) {
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link <?= $currentPage === 'workflow-dashboard.php' ? 'active fw-bold' : '' ?>" href="workflow-dashboard.php">
+            <i class="fas fa-sync me-1"></i>AI Workflow
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <?= $currentPage === 'google-integration.php' ? 'active fw-bold' : '' ?>" href="google-integration.php">
+            <i class="fab fa-google me-1"></i>Google Console
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link <?= $currentPage === 'git-deployer.php' ? 'active fw-bold' : '' ?>" href="git-deployer.php">
+            <i class="fab fa-github me-1"></i>Git Push Agent
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link <?= $currentPage === 'how-to-use.php' ? 'active fw-bold' : '' ?>" href="how-to-use.php">
             <i class="fas fa-question-circle me-1"></i>How to Use
           </a>
