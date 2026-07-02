@@ -13,7 +13,7 @@ function analyzeMetaTags(string $url, string $keyword): array {
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_TIMEOUT        => 15,
         CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; SEOBot/1.0)',
+        CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     ]);
     $html = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

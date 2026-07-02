@@ -12,121 +12,133 @@ $project = $stmt->fetch();
 if (!$project) { echo json_encode(['error' => 'Not found']); exit; }
 
 // 100% AUTO: Check Google rank using DataForSEO API (FREE 100/day)
-function checkGoogleRank($keyword, $targetSite) {
-    $domain = parse_url($targetSite, PHP_URL_HOST) ?: $targetSite;
-    $domain = str_replace('www.', '', strtolower($domain));
+if (!function_exists('checkGoogleRank')) {
+    function checkGoogleRank($keyword, $targetSite) {
+        $domain = parse_url($targetSite, PHP_URL_HOST) ?: $targetSite;
+        $domain = str_replace('www.', '', strtolower($domain));
 
-    // ── Method 0: Google Custom Search Engine (CSE) API (Official & 100% Free 100/day) ──
-    $googleApiKey = defined('GOOGLE_API_KEY') ? GOOGLE_API_KEY : '';
-    $googleCseCx  = defined('GOOGLE_CSE_CX') ? GOOGLE_CSE_CX : '';
-    if (!empty($googleApiKey) && !empty($googleCseCx)) {
-        $cseUrl = "https://www.googleapis.com/customsearch/v1?key=" . urlencode($googleApiKey) . "&cx=" . urlencode($googleCseCx) . "&q=" . urlencode($keyword) . "&num=10";
-        $ch = curl_init($cseUrl);
+        // ── Method 0: Google Custom Search Engine (CSE) API (Official & 100% Free 100/day) ──
+        $googleApiKey = defined('GOOGLE_API_KEY') ? GOOGLE_API_KEY : '';
+        $googleCseCx  = defined('GOOGLE_CSE_CX') ? GOOGLE_CSE_CX : '';
+        if (!empty($googleApiKey) && !empty($googleCseCx)) {
+            $cseUrl = "https://www.googleapis.com/customsearch/v1?key=" . urlencode($googleApiKey) . "&cx=" . urlencode($googleCseCx) . "&q=" . urlencode($keyword) . "&num=10";
+            $ch = curl_init($cseUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $resp = curl_exec($ch);
+            curl_close($ch);
+            
+            $data = json_decode($resp, true);
+            
+            // Check for API errors
+            if (isset($data['error'])) {
+                error_log("Google CSE API Error: " . json_encode($data['error']));
+                // Continue to next method
+            } else {
+                $items = $data['items'] ?? [];
+                foreach ($items as $pos => $item) {
+                    $itemUrl = $item['link'] ?? '';
+                    $ld = str_replace('www.', '', strtolower(parse_url($itemUrl, PHP_URL_HOST) ?: ''));
+                    if (stripos($ld, $domain) !== false) {
+                        return $pos + 1;
+                    }
+                }
+            }
+        }
+
+        // ── Method 1: DataForSEO SERP API (most accurate) ────────
+        $login    = defined('DATAFORSEO_LOGIN')    ? DATAFORSEO_LOGIN    : '';
+        $password = defined('DATAFORSEO_PASSWORD') ? DATAFORSEO_PASSWORD : '';
+
+        if ($login && $password) {
+            $postData = json_encode([[
+                'keyword'       => $keyword,
+                'location_code' => 2356,   // India
+                'language_code' => 'en',
+                'device'        => 'desktop',
+                'os'            => 'windows',
+                'depth'         => 100,
+            ]]);
+
+            $ch = curl_init('https://api.dataforseo.com/v3/serp/google/organic/live/advanced');
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => $postData,
+                CURLOPT_HTTPHEADER     => [
+                    'Authorization: Basic ' . base64_encode($login . ':' . $password),
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_TIMEOUT        => 60,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $resp = curl_exec($ch);
+            curl_close($ch);
+
+            $data = json_decode($resp, true);
+            $items = $data['tasks'][0]['result'][0]['items'] ?? [];
+
+            foreach ($items as $item) {
+                if (($item['type'] ?? '') !== 'organic') continue;
+                $itemUrl    = $item['url'] ?? '';
+                $itemDomain = parse_url($itemUrl, PHP_URL_HOST) ?: '';
+                $itemDomain = str_replace('www.', '', strtolower($itemDomain));
+                if (stripos($itemDomain, $domain) !== false ||
+                    stripos($itemUrl, $domain) !== false) {
+                    return (int)($item['rank_absolute'] ?? ($item['rank_group'] ?? 0));
+                }
+            }
+
+            // If API returned results but domain not found → not in top 100
+            if (!empty($items)) return 0;
+        }
+
+        // ── Method 2: Bing scraping fallback ─────────────────────
+        $bingUrl = 'https://www.bing.com/search?q=' . urlencode($keyword) . '&count=50';
+        $ch = curl_init();
         curl_setopt_array($ch, [
+            CURLOPT_URL            => $bingUrl,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 15,
             CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            CURLOPT_HTTPHEADER     => ['Accept-Language: en-US,en;q=0.9'],
+            CURLOPT_FOLLOWLOCATION => true,
         ]);
-        $resp = curl_exec($ch);
-        curl_close($ch);
-        
-        $data = json_decode($resp, true);
-        $items = $data['items'] ?? [];
-        foreach ($items as $pos => $item) {
-            $itemUrl = $item['link'] ?? '';
-            $ld = str_replace('www.', '', strtolower(parse_url($itemUrl, PHP_URL_HOST) ?: ''));
-            if (stripos($ld, $domain) !== false) {
-                return $pos + 1;
-            }
-        }
-    }
-
-    // ── Method 1: DataForSEO SERP API (most accurate) ────────
-    $login    = defined('DATAFORSEO_LOGIN')    ? DATAFORSEO_LOGIN    : '';
-    $password = defined('DATAFORSEO_PASSWORD') ? DATAFORSEO_PASSWORD : '';
-
-    if ($login && $password) {
-        $postData = json_encode([[
-            'keyword'       => $keyword,
-            'location_code' => 2356,   // India
-            'language_code' => 'en',
-            'device'        => 'desktop',
-            'os'            => 'windows',
-            'depth'         => 100,
-        ]]);
-
-        $ch = curl_init('https://api.dataforseo.com/v3/serp/google/organic/live/advanced');
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $postData,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Basic ' . base64_encode($login . ':' . $password),
-                'Content-Type: application/json',
-            ],
-            CURLOPT_TIMEOUT        => 60,
-            CURLOPT_SSL_VERIFYPEER => false,
-        ]);
-        $resp = curl_exec($ch);
+        $html = curl_exec($ch);
         curl_close($ch);
 
-        $data = json_decode($resp, true);
-        $items = $data['tasks'][0]['result'][0]['items'] ?? [];
-
-        foreach ($items as $item) {
-            if (($item['type'] ?? '') !== 'organic') continue;
-            $itemUrl    = $item['url'] ?? '';
-            $itemDomain = parse_url($itemUrl, PHP_URL_HOST) ?: '';
-            $itemDomain = str_replace('www.', '', strtolower($itemDomain));
-            if (stripos($itemDomain, $domain) !== false ||
-                stripos($itemUrl, $domain) !== false) {
-                return (int)($item['rank_absolute'] ?? ($item['rank_group'] ?? 0));
-            }
-        }
-
-        // If API returned results but domain not found → not in top 100
-        if (!empty($items)) return 0;
-    }
-
-    // ── Method 2: Bing scraping fallback ─────────────────────
-    $bingUrl = 'https://www.bing.com/search?q=' . urlencode($keyword) . '&count=50';
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $bingUrl,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_USERAGENT      => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        CURLOPT_HTTPHEADER     => ['Accept-Language: en-US,en;q=0.9'],
-        CURLOPT_FOLLOWLOCATION => true,
-    ]);
-    $html = curl_exec($ch);
-    curl_close($ch);
-
-    if ($html) {
-        preg_match_all('/<h2><a[^>]+href="([^"]+)"/i', $html, $m);
-        $links = $m[1] ?? [];
-        if (empty($links)) {
-            preg_match_all('/href="([^"]+)"/i', $html, $m2);
-            $links = $m2[1] ?? [];
-        }
-        
-        $pos = 1;
-        foreach ($links as $link) {
-            if (strpos($link, 'http') !== 0) continue;
-            if (strpos($link, 'bing.com') !== false || strpos($link, 'microsoft.com') !== false || strpos($link, 'live.com') !== false || strpos($link, 'go.microsoft.com') !== false) {
-                continue;
+        if ($html) {
+            preg_match_all('/<h2><a[^>]+href="([^"]+)"/i', $html, $m);
+            $links = $m[1] ?? [];
+            if (empty($links)) {
+                preg_match_all('/href="([^"]+)"/i', $html, $m2);
+                $links = $m2[1] ?? [];
             }
             
-            $ld = str_replace('www.', '', strtolower(parse_url($link, PHP_URL_HOST) ?: ''));
-            if (stripos($ld, $domain) !== false) {
-                return $pos;
+            $pos = 1;
+            foreach ($links as $link) {
+                if (strpos($link, 'http') !== 0) continue;
+                if (strpos($link, 'bing.com') !== false || 
+                    strpos($link, 'microsoft.com') !== false || 
+                    strpos($link, 'live.com') !== false || 
+                    strpos($link, 'go.microsoft.com') !== false) {
+                    continue;
+                }
+                
+                $ld = str_replace('www.', '', strtolower(parse_url($link, PHP_URL_HOST) ?: ''));
+                if (stripos($ld, $domain) !== false) {
+                    return $pos;
+                }
+                $pos++;
             }
-            $pos++;
         }
-    }
 
-    return 0;
+        return 0;
+    }
 }
 
 if ($isRun || $isAjax) {
@@ -167,6 +179,7 @@ $latestRank->execute([$projectId]);
 $latestRank = $latestRank->fetchColumn() ?: 0;
 ?>
 
+<!-- HTML Content (Remains Same) -->
 <?php if ($isAjax): ?>
 <div class="row mb-3">
   <div class="col-md-3">
