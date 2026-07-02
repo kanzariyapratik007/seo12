@@ -39,28 +39,35 @@ if ($isRun) {
     header('Content-Type: application/json');
     $analysis = analyzeMetaTags($url, $keyword);
     $generated = generateMetaWithAI($project, $keyword, $url);
-    if ($generated) {
+    if ($generated && !isset($generated['error'])) {
         saveProjectMeta($db, $projectId, $generated);
+        $issueCount = count($analysis['issues'] ?? []);
+        echo json_encode([
+            'message' => "Meta tags generated with " . ($generated['source'] ?? 'AI') . ". Found {$issueCount} issues on live site — copy HTML to your website <head>.",
+            'issues'  => $issueCount,
+            'score'   => max(0, 100 - ($issueCount * 12)),
+        ]);
+    } else {
+        $err = $generated['error'] ?? 'Meta generation failed. Add ChatGPT API key.';
+        echo json_encode([
+            'error' => $err,
+            'message' => $err
+        ]);
     }
-    $issueCount = count($analysis['issues'] ?? []);
-    echo json_encode([
-        'message' => $generated
-            ? "Meta tags generated with " . (hasChatGPT() ? 'ChatGPT' : 'template') . ". Found {$issueCount} issues on live site — copy HTML to your website <head>."
-            : 'Meta generation failed. Add ChatGPT API key.',
-        'issues'  => $issueCount,
-        'score'   => max(0, 100 - ($issueCount * 12)),
-    ]);
     exit;
 }
 
 $analysis  = analyzeMetaTags($url, $keyword);
 $savedMeta = loadProjectMeta($db, $projectId);
+$metaError = null;
 
-if (!$savedMeta && empty($analysis['error']) && hasChatGPT()) {
+if (!$savedMeta && empty($analysis['error'])) {
     $generated = generateMetaWithAI($project, $keyword, $url);
-    if ($generated) {
+    if ($generated && !isset($generated['error'])) {
         saveProjectMeta($db, $projectId, $generated);
         $savedMeta = loadProjectMeta($db, $projectId);
+    } elseif (isset($generated['error'])) {
+        $metaError = $generated['error'];
     }
 }
 
@@ -139,8 +146,12 @@ $severityColors = ['critical' => 'danger', 'high' => 'warning', 'medium' => 'inf
         <p><strong>Title (<?= mb_strlen($savedMeta['meta_title']) ?> chars):</strong><br><?= clean($savedMeta['meta_title']) ?></p>
         <p><strong>Description (<?= mb_strlen($savedMeta['meta_description']) ?> chars):</strong><br><?= clean($savedMeta['meta_description']) ?></p>
         <p><strong>H1 suggestion:</strong> <code>&lt;h1&gt;<?= clean($savedMeta['h1_suggestion']) ?>&lt;/h1&gt;</code></p>
+        <?php elseif (!empty($metaError)): ?>
+        <div class="alert alert-danger py-2 small mb-0">
+             <i class="fas fa-exclamation-circle me-1"></i> <?= clean($metaError) ?>
+        </div>
         <?php else: ?>
-        <p class="text-warning">No meta saved yet. Click Regenerate or Run All SEO.</p>
+        <p class="text-warning mb-0">No meta saved yet. Click Regenerate or Run All SEO.</p>
         <?php endif; ?>
       </div>
     </div>

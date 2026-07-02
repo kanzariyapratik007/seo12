@@ -100,6 +100,16 @@ function generateMetaWithAI(array $project, ?string $customKeyword = null, ?stri
     $site    = trim(explode(',', $site)[0]);
     $brand   = parse_url($site, PHP_URL_HOST) ?: 'Your Brand';
 
+    // Verify if API Key is configured and valid
+    $openaiKey = defined('OPENAI_API_KEY') ? OPENAI_API_KEY : '';
+    $geminiKey = defined('GEMINI_API_KEY') ? GEMINI_API_KEY : '';
+    $isOpenAiValid = (!empty($openaiKey) && strpos($openaiKey, 'your-') === false && strpos($openaiKey, 'sk-') === 0);
+    $isGeminiValid = (!empty($geminiKey) && strpos($geminiKey, 'your-') === false);
+
+    if (!$isOpenAiValid && !$isGeminiValid) {
+        return ['error' => 'API Key is not valid / missing. Please set a valid ChatGPT or Gemini key in the API Keys tab.'];
+    }
+
     $prompt = <<<PROMPT
 You are a senior SEO expert. Generate optimized meta tags for Google ranking.
 
@@ -122,14 +132,14 @@ PROMPT;
 
     $ai  = generateWithAI($prompt);
     $raw = $ai['text'];
-    if (!$raw) {
-        return generateMetaFallback($project, $keyword, $site);
+    if (!$raw || ($ai['source'] ?? '') === 'Template') {
+        return ['error' => 'API Call failed / API Key is not valid. Your API key might be expired, invalid, or has exceeded quota.'];
     }
 
     $raw = preg_replace('/^```json\s*|\s*```$/m', '', trim($raw));
     $data = json_decode($raw, true);
     if (!is_array($data) || empty($data['meta_title'])) {
-        return generateMetaFallback($project, $keyword, $site);
+        return ['error' => 'API Response parsing failed. The AI returned an invalid structure.'];
     }
 
     $data['meta_title']       = mb_substr(trim($data['meta_title']), 0, 70);
