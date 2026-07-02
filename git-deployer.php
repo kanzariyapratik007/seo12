@@ -252,13 +252,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['clone_repo'])) {
             if (!empty($username) && !empty($token)) {
                 if (preg_match('/github\.com[\/:][^\/]+\/[^\/\s\.]+/', $repoUrl, $m)) {
                     $cleanRepo = str_replace('.git', '', $m[0]);
-                    $authRepo = "https://{$username}:{$token}@{$cleanRepo}.git";
+                    $encodedToken = urlencode($token);
+                    $authRepo = "https://{$username}:{$encodedToken}@{$cleanRepo}.git";
                 }
             }
             
             // Create folder and run clone
             @mkdir(dirname($localPath), 0777, true);
-            $cloneOut = shell_exec("git clone " . escapeshellarg($authRepo) . " " . escapeshellarg($localPath) . " 2>&1");
+            $cloneOut = shell_exec("git clone \"{$authRepo}\" " . escapeshellarg($localPath) . " 2>&1");
             $gitLog[] = "📁 git clone: " . trim($cloneOut);
             
             if (is_dir($localPath)) {
