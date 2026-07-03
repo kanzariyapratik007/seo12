@@ -842,14 +842,7 @@ if (empty($brokenLinks)) {
             <div id="siteTagsContainer" class="d-flex flex-wrap gap-2 mt-2"></div>
           </div>
         </div>
-        <div class="mb-0">
-          <label class="form-label fw-bold">SEO Package / Plan <span class="text-danger">*</span></label>
-          <select name="package_type" class="form-select" required>
-            <option value="basic" <?= ($project['package_type'] === 'basic') ? 'selected' : '' ?>>🟢 Basic SEO (₹4,999/mo) — Audits & On-Page Only</option>
-            <option value="standard" <?= ($project['package_type'] === 'standard') ? 'selected' : '' ?>>🔵 Standard SEO (₹9,999/mo) — Basic + Auto Backlinks (API)</option>
-            <option value="premium" <?= ($project['package_type'] === 'premium') ? 'selected' : '' ?>>🟠 Premium SEO (₹19,999/mo) — Full Auto (API + Selenium Browser Auto)</option>
-          </select>
-        </div>
+        <input type="hidden" name="package_type" value="premium">
       </div>
     </div>
 
