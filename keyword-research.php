@@ -232,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 // 80% AUTO: Fetch keywords from Google Suggest API
 function fetchGoogleSuggest($keyword) {
     $keywords = [];
-    $prefixes = ['', 'best ', 'top ', 'how to ', 'what is ', 'why ', 'when ', 'where ', 'free ', 'online '];
+    $prefixes = ['', 'best ', 'how to ', 'free '];
     $suffixes = [' course', ' training', ' tutorial', ' certification', ' near me', ' online', ' for beginners', ' jobs', ' salary', ' 2024'];
 
     foreach ($prefixes as $prefix) {
@@ -500,18 +500,23 @@ $ignoreCount = count(array_filter($keywords, fn($k) => ($k['status'] ?? 'Pending
                         </thead>
                         <tbody>
                             <?php foreach ($keywords as $i => $kw): ?>
-                                <?php
-                                $sd = $kw['seo_difficulty'] ?? 40;
-                                $sdBadge = 'bg-success';
-                                $sdText = 'Easy';
-                                if ($sd > 50) {
-                                    $sdBadge = 'bg-danger';
-                                    $sdText = 'Hard';
-                                } elseif ($sd > 30) {
-                                    $sdBadge = 'bg-warning text-dark';
-                                    $sdText = 'Medium';
-                                }
-                                ?>
+                                 <?php
+                                 $sd = $kw['seo_difficulty'] ?? 40;
+                                 $sdBadge = 'bg-success';
+                                 $sdText = 'Easy';
+                                 if ($sd > 50) {
+                                     $sdBadge = 'bg-danger';
+                                     $sdText = 'Hard';
+                                 } elseif ($sd > 30) {
+                                     $sdBadge = 'bg-warning text-dark';
+                                     $sdText = 'Medium';
+                                 }
+                                 
+                                 $score = $kw['score'] ?? 0;
+                                 if ($score == 0) {
+                                     $score = calculateKeywordScore($kw['search_volume'], $kw['cpc'] ?? 0.00, $kw['competition'] ?? 0.00, $sd);
+                                 }
+                                 ?>
                                 <tr class="kw-row" style="font-size:13px;">
                                     <td><?= $i + 1 ?></td>
                                     <td><code><?= clean($kw['keyword']) ?></code></td>
@@ -534,8 +539,8 @@ $ignoreCount = count(array_filter($keywords, fn($k) => ($k['status'] ?? 'Pending
                                         </div>
                                     </td>
                                     <td>
-                                        <strong id="score-val-<?= $kw['id'] ?>" class="<?= ($kw['score'] ?? 0) >= 70 ? 'text-success' : (($kw['score'] ?? 0) >= 40 ? 'text-warning' : 'text-danger') ?>">
-                                            <?= $kw['score'] ?? 0 ?>/100
+                                        <strong id="score-val-<?= $kw['id'] ?>" class="<?= $score >= 70 ? 'text-success' : ($score >= 40 ? 'text-warning' : 'text-danger') ?>">
+                                            <?= $score ?>/100
                                         </strong>
                                     </td>
                                     <td>
@@ -624,11 +629,22 @@ function refreshKeywords(btn) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Suggesting...';
     fetch('keyword-research.php?id=<?= $projectId ?>&run=1')
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return r.json();
+        })
         .then(data => {
             alert(data.message);
             if (typeof loadTab === 'function') loadTab('keywords');
             else location.reload();
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error generating keywords. Please check your internet connection or API keys.');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sync me-1"></i> Auto Suggest';
         });
 }
 
